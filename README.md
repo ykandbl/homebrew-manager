@@ -14,7 +14,7 @@
 
 ## 截图
 
-![Homebrew Manager](./screenshots/main.png)
+<img src="./screenshots/main.png" alt="Homebrew Manager" width="800">
 
 ## 系统要求
 
@@ -25,13 +25,13 @@
 
 ### 下载安装
 
-从 [Releases](https://github.com/YOUR_USERNAME/homebrew-manager/releases) 页面下载最新的 `.dmg` 文件，打开后将应用拖入 Applications 文件夹。
+从 [Releases](https://github.com/ykandbl/homebrew-manager/releases) 页面下载最新的 `.dmg` 文件，打开后将应用拖入 Applications 文件夹。
 
 ### 从源码构建
 
 ```bash
 # 克隆仓库
-git clone https://github.com/YOUR_USERNAME/homebrew-manager.git
+git clone https://github.com/ykandbl/homebrew-manager.git
 cd homebrew-manager
 
 # 安装依赖
