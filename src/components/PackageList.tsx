@@ -6,13 +6,15 @@ import './PackageList.css';
 interface PackageListProps {
   packages: Package[];
   pinnedPackages: string[];
+  favoritePackages: string[];
   selectedId: string | null;
   onSelect: (pkg: Package) => void;
+  onContextMenu: (e: React.MouseEvent, pkg: Package) => void;
   isLoading?: boolean;
   lang: Language;
 }
 
-export function PackageList({ packages, pinnedPackages, selectedId, onSelect, isLoading, lang }: PackageListProps) {
+export function PackageList({ packages, pinnedPackages, favoritePackages, selectedId, onSelect, onContextMenu, isLoading, lang }: PackageListProps) {
   if (isLoading) {
     return (
       <div className="package-list package-list--loading">
@@ -34,14 +36,17 @@ export function PackageList({ packages, pinnedPackages, selectedId, onSelect, is
     <div className="package-list">
       {packages.map((pkg) => {
         const isPinned = pinnedPackages.includes(pkg.name);
+        const isFavorite = favoritePackages.includes(pkg.name);
         return (
           <div
             key={`${pkg.name}-${pkg.type}`}
             className={`package-item ${selectedId === pkg.name ? 'package-item--selected' : ''}`}
             onClick={() => onSelect(pkg)}
+            onContextMenu={(e) => onContextMenu(e, pkg)}
           >
             <div className="package-item__main">
               <span className="package-item__name">
+                {isFavorite && <span className="favorite-icon">⭐</span>}
                 {isPinned && <span className="pin-icon">📌</span>}
                 {pkg.name}
               </span>

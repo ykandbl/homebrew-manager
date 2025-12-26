@@ -10,17 +10,19 @@ interface FilterTabsProps {
     formula: number;
     cask: number;
     outdated: number;
+    favorites: number;
   };
   lang: Language;
 }
 
-const FILTERS: PackageFilter[] = ['all', 'formula', 'cask', 'outdated'];
+const FILTERS: PackageFilter[] = ['all', 'formula', 'cask', 'outdated', 'favorites'];
 
-const FILTER_KEYS: Record<PackageFilter, 'filterAll' | 'filterFormula' | 'filterCask' | 'filterOutdated'> = {
+const FILTER_KEYS: Record<PackageFilter, 'filterAll' | 'filterFormula' | 'filterCask' | 'filterOutdated' | 'filterFavorites'> = {
   all: 'filterAll',
   formula: 'filterFormula',
   cask: 'filterCask',
   outdated: 'filterOutdated',
+  favorites: 'filterFavorites',
 };
 
 export function FilterTabs({ activeFilter, onChange, counts, lang }: FilterTabsProps) {

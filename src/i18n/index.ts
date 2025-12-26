@@ -91,6 +91,38 @@ export const translations = {
     requiredBy: '被依赖于',
     noDeps: '无依赖',
     noReverseDeps: '无被依赖',
+    
+    // Auto Refresh
+    autoRefresh: '自动刷新',
+    autoRefreshOff: '关闭',
+    autoRefreshMinutes: '{min} 分钟',
+    
+    // Favorites
+    favorites: '收藏',
+    addToFavorites: '添加收藏',
+    removeFromFavorites: '取消收藏',
+    filterFavorites: '收藏',
+    
+    // History
+    history: '操作历史',
+    clearHistory: '清空历史',
+    noHistory: '暂无操作记录',
+    historyInstall: '安装了 {name}',
+    historyUninstall: '卸载了 {name}',
+    historyUpgrade: '更新了 {name}',
+    historyUpdate: '更新了 Homebrew',
+    historyCleanup: '清理了缓存',
+    historySuccess: '成功',
+    historyFailed: '失败',
+    
+    // Context Menu
+    contextInstall: '安装',
+    contextUninstall: '卸载',
+    contextUpdate: '更新',
+    contextViewDetails: '查看详情',
+    contextAddFavorite: '添加到收藏',
+    contextRemoveFavorite: '从收藏移除',
+    contextViewDeps: '查看依赖',
   },
   en: {
     // Header
@@ -182,6 +214,38 @@ export const translations = {
     requiredBy: 'Required by',
     noDeps: 'No dependencies',
     noReverseDeps: 'Not required by any package',
+    
+    // Auto Refresh
+    autoRefresh: 'Auto Refresh',
+    autoRefreshOff: 'Off',
+    autoRefreshMinutes: '{min} min',
+    
+    // Favorites
+    favorites: 'Favorites',
+    addToFavorites: 'Add to Favorites',
+    removeFromFavorites: 'Remove from Favorites',
+    filterFavorites: 'Favorites',
+    
+    // History
+    history: 'History',
+    clearHistory: 'Clear History',
+    noHistory: 'No operation history',
+    historyInstall: 'Installed {name}',
+    historyUninstall: 'Uninstalled {name}',
+    historyUpgrade: 'Updated {name}',
+    historyUpdate: 'Updated Homebrew',
+    historyCleanup: 'Cleaned up cache',
+    historySuccess: 'Success',
+    historyFailed: 'Failed',
+    
+    // Context Menu
+    contextInstall: 'Install',
+    contextUninstall: 'Uninstall',
+    contextUpdate: 'Update',
+    contextViewDetails: 'View Details',
+    contextAddFavorite: 'Add to Favorites',
+    contextRemoveFavorite: 'Remove from Favorites',
+    contextViewDeps: 'View Dependencies',
   },
 };
 

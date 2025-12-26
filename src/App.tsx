@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { usePackages } from './hooks/usePackages';
 import { usePreferences } from './hooks/usePreferences';
@@ -10,10 +10,13 @@ import { ProgressModal } from './components/ProgressModal';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { Toast, ToastType } from './components/Toast';
 import { ErrorPage } from './components/ErrorPage';
+import { ContextMenu } from './components/ContextMenu';
+import { HistoryPanel } from './components/HistoryPanel';
 import { filterPackages, getFilterCounts } from './utils/filter';
 import { sortPackages } from './utils/sort';
 import { t } from './i18n';
 import type { Package, OperationType, OperationStatus, DependencyInfo } from './types';
+import type { AutoRefreshInterval } from './types/preferences';
 import './styles/index.css';
 
 function App() {
@@ -23,8 +26,11 @@ function App() {
   const [isSearching, setIsSearching] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showDeps, setShowDeps] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [depsInfo, setDepsInfo] = useState<DependencyInfo | null>(null);
-  
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; pkg: Package } | null>(null);
+  const autoRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const [operation, setOperation] = useState<{
     type: OperationType;
     packageName: string;
@@ -55,12 +61,31 @@ function App() {
     getDependencies, refreshHomebrewInfo,
   } = usePackages();
 
-  const { preferences, setFilter, setTheme, setLanguage } = usePreferences();
+  const {
+    preferences, history, setFilter, setTheme, setLanguage,
+    setAutoRefreshInterval, toggleFavorite, isFavorite, addHistory, clearHistory,
+  } = usePreferences();
   const lang = preferences.language;
 
   useEffect(() => {
     invoke<boolean>('check_homebrew').then(setHomebrewInstalled).catch(() => setHomebrewInstalled(false));
   }, []);
+
+  // 自动刷新
+  useEffect(() => {
+    if (autoRefreshRef.current) {
+      clearInterval(autoRefreshRef.current);
+      autoRefreshRef.current = null;
+    }
+    if (preferences.autoRefreshInterval > 0) {
+      autoRefreshRef.current = setInterval(() => {
+        refresh();
+      }, preferences.autoRefreshInterval * 60 * 1000);
+    }
+    return () => {
+      if (autoRefreshRef.current) clearInterval(autoRefreshRef.current);
+    };
+  }, [preferences.autoRefreshInterval, refresh]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -86,50 +111,68 @@ function App() {
 
   const displayPackages = useMemo(() => {
     const source = searchQuery ? searchResults : packages;
-    return sortPackages(filterPackages(source, preferences.filter), preferences.sortBy, preferences.sortDirection);
+    return sortPackages(filterPackages(source, preferences.filter, preferences.favorites), preferences.sortBy, preferences.sortDirection);
   }, [searchQuery, searchResults, packages, preferences]);
 
-  const filterCounts = useMemo(() => getFilterCounts(searchQuery ? searchResults : packages), [searchQuery, searchResults, packages]);
+  const filterCounts = useMemo(() => 
+    getFilterCounts(searchQuery ? searchResults : packages, preferences.favorites),
+    [searchQuery, searchResults, packages, preferences.favorites]
+  );
   const outdatedCount = useMemo(() => packages.filter(p => p.outdated).length, [packages]);
   const handleProgress = useCallback((line: string) => { setOperation(prev => prev ? { ...prev, output: [...prev.output, line] } : null); }, []);
 
-  const handleInstall = useCallback(async () => {
-    if (!selectedPackage) return;
-    setOperation({ type: 'install', packageName: selectedPackage.name, status: 'pending', output: [] });
+  const handleInstall = useCallback(async (pkg?: Package) => {
+    const targetPkg = pkg || selectedPackage;
+    if (!targetPkg) return;
+    setOperation({ type: 'install', packageName: targetPkg.name, status: 'pending', output: [] });
     try {
-      const result = await installPackage(selectedPackage.name, selectedPackage.type === 'cask', handleProgress);
+      const result = await installPackage(targetPkg.name, targetPkg.type === 'cask', handleProgress);
       setOperation(prev => prev ? { ...prev, status: result.success ? 'success' : 'error', error: result.success ? undefined : result.stderr } : null);
+      addHistory({ type: 'install', packageName: targetPkg.name, success: result.success });
       if (result.success) { await refresh(); setToast({ isVisible: true, message: t('installSuccess', lang), type: 'success' }); }
-    } catch (e) { setOperation(prev => prev ? { ...prev, status: 'error', error: e instanceof Error ? e.message : String(e) } : null); }
-  }, [selectedPackage, installPackage, refresh, handleProgress, lang]);
+    } catch (e) { 
+      setOperation(prev => prev ? { ...prev, status: 'error', error: e instanceof Error ? e.message : String(e) } : null);
+      addHistory({ type: 'install', packageName: targetPkg.name, success: false });
+    }
+  }, [selectedPackage, installPackage, refresh, handleProgress, lang, addHistory]);
 
-  const handleUninstallConfirm = useCallback(() => {
-    if (!selectedPackage) return;
+  const handleUninstallConfirm = useCallback((pkg?: Package) => {
+    const targetPkg = pkg || selectedPackage;
+    if (!targetPkg) return;
     setConfirmDialog({
       isOpen: true, title: t('confirmUninstall', lang),
-      message: t('confirmUninstallMsg', lang, { name: selectedPackage.name }),
+      message: t('confirmUninstallMsg', lang, { name: targetPkg.name }),
       confirmText: t('uninstall', lang),
       onConfirm: async () => {
         setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-        setOperation({ type: 'uninstall', packageName: selectedPackage.name, status: 'pending', output: [] });
+        setOperation({ type: 'uninstall', packageName: targetPkg.name, status: 'pending', output: [] });
         try {
-          const result = await uninstallPackage(selectedPackage.name, selectedPackage.type === 'cask', handleProgress);
+          const result = await uninstallPackage(targetPkg.name, targetPkg.type === 'cask', handleProgress);
           setOperation(prev => prev ? { ...prev, status: result.success ? 'success' : 'error', error: result.success ? undefined : result.stderr } : null);
+          addHistory({ type: 'uninstall', packageName: targetPkg.name, success: result.success });
           if (result.success) { selectPackage(null); await refresh(); setToast({ isVisible: true, message: t('uninstallSuccess', lang), type: 'success' }); }
-        } catch (e) { setOperation(prev => prev ? { ...prev, status: 'error', error: e instanceof Error ? e.message : String(e) } : null); }
+        } catch (e) { 
+          setOperation(prev => prev ? { ...prev, status: 'error', error: e instanceof Error ? e.message : String(e) } : null);
+          addHistory({ type: 'uninstall', packageName: targetPkg.name, success: false });
+        }
       },
     });
-  }, [selectedPackage, uninstallPackage, refresh, selectPackage, handleProgress, lang]);
+  }, [selectedPackage, uninstallPackage, refresh, selectPackage, handleProgress, lang, addHistory]);
 
-  const handleUpdate = useCallback(async () => {
-    if (!selectedPackage) return;
-    setOperation({ type: 'upgrade', packageName: selectedPackage.name, status: 'pending', output: [] });
+  const handleUpdate = useCallback(async (pkg?: Package) => {
+    const targetPkg = pkg || selectedPackage;
+    if (!targetPkg) return;
+    setOperation({ type: 'upgrade', packageName: targetPkg.name, status: 'pending', output: [] });
     try {
-      const result = await upgradePackage(selectedPackage.name, selectedPackage.type === 'cask', handleProgress);
+      const result = await upgradePackage(targetPkg.name, targetPkg.type === 'cask', handleProgress);
       setOperation(prev => prev ? { ...prev, status: result.success ? 'success' : 'error', error: result.success ? undefined : result.stderr } : null);
+      addHistory({ type: 'upgrade', packageName: targetPkg.name, success: result.success });
       if (result.success) { await refresh(); setToast({ isVisible: true, message: t('updateSuccess', lang), type: 'success' }); }
-    } catch (e) { setOperation(prev => prev ? { ...prev, status: 'error', error: e instanceof Error ? e.message : String(e) } : null); }
-  }, [selectedPackage, upgradePackage, refresh, handleProgress, lang]);
+    } catch (e) { 
+      setOperation(prev => prev ? { ...prev, status: 'error', error: e instanceof Error ? e.message : String(e) } : null);
+      addHistory({ type: 'upgrade', packageName: targetPkg.name, success: false });
+    }
+  }, [selectedPackage, upgradePackage, refresh, handleProgress, lang, addHistory]);
 
   const handleUpgradeAll = useCallback(() => {
     if (outdatedCount === 0) return;
@@ -154,9 +197,13 @@ function App() {
     try {
       const result = await updateHomebrew(handleProgress);
       setOperation(prev => prev ? { ...prev, status: result.success ? 'success' : 'error', error: result.success ? undefined : result.stderr } : null);
+      addHistory({ type: 'update', success: result.success });
       if (result.success) { await refresh(); await refreshHomebrewInfo(); setToast({ isVisible: true, message: t('homebrewUpdateSuccess', lang), type: 'success' }); }
-    } catch (e) { setOperation(prev => prev ? { ...prev, status: 'error', error: e instanceof Error ? e.message : String(e) } : null); }
-  }, [updateHomebrew, refresh, refreshHomebrewInfo, handleProgress, lang]);
+    } catch (e) { 
+      setOperation(prev => prev ? { ...prev, status: 'error', error: e instanceof Error ? e.message : String(e) } : null);
+      addHistory({ type: 'update', success: false });
+    }
+  }, [updateHomebrew, refresh, refreshHomebrewInfo, handleProgress, lang, addHistory]);
 
   const handleCleanup = useCallback(() => {
     const cacheSizeMB = ((homebrewInfo?.cacheSize ?? 0) / 1024 / 1024).toFixed(1) + ' MB';
@@ -170,11 +217,15 @@ function App() {
         try {
           const result = await cleanupHomebrew(handleProgress);
           setOperation(prev => prev ? { ...prev, status: result.success ? 'success' : 'error', error: result.success ? undefined : result.stderr } : null);
+          addHistory({ type: 'cleanup', success: result.success });
           if (result.success) { await refreshHomebrewInfo(); setToast({ isVisible: true, message: t('cleanupSuccess', lang), type: 'success' }); }
-        } catch (e) { setOperation(prev => prev ? { ...prev, status: 'error', error: e instanceof Error ? e.message : String(e) } : null); }
+        } catch (e) { 
+          setOperation(prev => prev ? { ...prev, status: 'error', error: e instanceof Error ? e.message : String(e) } : null);
+          addHistory({ type: 'cleanup', success: false });
+        }
       },
     });
-  }, [homebrewInfo, cleanupHomebrew, refreshHomebrewInfo, handleProgress, lang]);
+  }, [homebrewInfo, cleanupHomebrew, refreshHomebrewInfo, handleProgress, lang, addHistory]);
 
   const handlePin = useCallback(async () => {
     if (!selectedPackage) return;
@@ -185,13 +236,19 @@ function App() {
     } catch { setToast({ isVisible: true, message: t('operationFailed', lang), type: 'error' }); }
   }, [selectedPackage, pinnedPackages, pinPackage, unpinPackage, lang]);
 
-  const handleViewDeps = useCallback(async () => {
-    if (!selectedPackage) return;
+  const handleViewDeps = useCallback(async (pkg?: Package) => {
+    const targetPkg = pkg || selectedPackage;
+    if (!targetPkg) return;
     try {
-      const deps = await getDependencies(selectedPackage.name, selectedPackage.type === 'cask');
+      const deps = await getDependencies(targetPkg.name, targetPkg.type === 'cask');
       setDepsInfo(deps); setShowDeps(true);
     } catch { setToast({ isVisible: true, message: t('operationFailed', lang), type: 'error' }); }
   }, [selectedPackage, getDependencies, lang]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, pkg: Package) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, pkg });
+  }, []);
 
   const formatCacheSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -218,6 +275,7 @@ function App() {
           <button className="btn-secondary" onClick={handleUpdateHomebrew}>{t('updateHomebrew', lang)}</button>
           <button className="btn-secondary" onClick={handleCleanup}>{t('cleanup', lang)}</button>
           <button className="btn-secondary" onClick={refresh} disabled={isLoading}>{t('refresh', lang)}</button>
+          <button className="btn-icon" onClick={() => setShowHistory(true)} title={t('history', lang)}>📜</button>
           <button className="btn-icon" onClick={() => setShowSettings(!showSettings)} title={t('settings', lang)}>⚙️</button>
         </div>
       </header>
@@ -236,6 +294,15 @@ function App() {
               <option value="dark">{t('themeDark', lang)}</option>
             </select>
           </div>
+          <div className="settings-item"><span>{t('autoRefresh', lang)}</span>
+            <select value={preferences.autoRefreshInterval} onChange={(e) => setAutoRefreshInterval(Number(e.target.value) as AutoRefreshInterval)}>
+              <option value={0}>{t('autoRefreshOff', lang)}</option>
+              <option value={5}>{t('autoRefreshMinutes', lang, { min: 5 })}</option>
+              <option value={10}>{t('autoRefreshMinutes', lang, { min: 10 })}</option>
+              <option value={30}>{t('autoRefreshMinutes', lang, { min: 30 })}</option>
+              <option value={60}>{t('autoRefreshMinutes', lang, { min: 60 })}</option>
+            </select>
+          </div>
           {homebrewInfo && <div className="settings-info"><div>{t('version', lang)}: {homebrewInfo.version}</div><div>{t('cache', lang)}: {formatCacheSize(homebrewInfo.cacheSize)}</div></div>}
         </div>
       )}
@@ -247,10 +314,32 @@ function App() {
 
       <main className="app-content">
         <div className="app-sidebar">
-          <PackageList packages={displayPackages} pinnedPackages={pinnedPackages} selectedId={selectedPackage?.name ?? null} onSelect={selectPackage} isLoading={isLoading} lang={lang} />
+          <PackageList 
+            packages={displayPackages} 
+            pinnedPackages={pinnedPackages} 
+            favoritePackages={preferences.favorites}
+            selectedId={selectedPackage?.name ?? null} 
+            onSelect={selectPackage} 
+            onContextMenu={handleContextMenu}
+            isLoading={isLoading} 
+            lang={lang} 
+          />
         </div>
         <div className="app-details">
-          <PackageDetails package={selectedPackage} packageInfo={packageInfo} isLoading={isLoadingInfo} isPinned={isPinned} onInstall={handleInstall} onUninstall={handleUninstallConfirm} onUpdate={handleUpdate} onPin={handlePin} onViewDeps={handleViewDeps} lang={lang} />
+          <PackageDetails 
+            package={selectedPackage} 
+            packageInfo={packageInfo} 
+            isLoading={isLoadingInfo} 
+            isPinned={isPinned} 
+            isFavorite={selectedPackage ? isFavorite(selectedPackage.name) : false}
+            onInstall={() => handleInstall()} 
+            onUninstall={() => handleUninstallConfirm()} 
+            onUpdate={() => handleUpdate()} 
+            onPin={handlePin} 
+            onToggleFavorite={() => selectedPackage && toggleFavorite(selectedPackage.name)}
+            onViewDeps={() => handleViewDeps()} 
+            lang={lang} 
+          />
         </div>
       </main>
 
@@ -267,6 +356,27 @@ function App() {
             <button className="btn-primary" onClick={() => setShowDeps(false)}>{t('close', lang)}</button>
           </div>
         </div>
+      )}
+
+      {showHistory && (
+        <HistoryPanel history={history} onClear={clearHistory} onClose={() => setShowHistory(false)} lang={lang} />
+      )}
+
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          package={contextMenu.pkg}
+          isFavorite={isFavorite(contextMenu.pkg.name)}
+          onClose={() => setContextMenu(null)}
+          onInstall={() => handleInstall(contextMenu.pkg)}
+          onUninstall={() => handleUninstallConfirm(contextMenu.pkg)}
+          onUpdate={() => handleUpdate(contextMenu.pkg)}
+          onViewDetails={() => selectPackage(contextMenu.pkg)}
+          onToggleFavorite={() => toggleFavorite(contextMenu.pkg.name)}
+          onViewDeps={() => handleViewDeps(contextMenu.pkg)}
+          lang={lang}
+        />
       )}
 
       <Toast message={toast.message} type={toast.type} isVisible={toast.isVisible} onClose={() => setToast(prev => ({ ...prev, isVisible: false }))} />

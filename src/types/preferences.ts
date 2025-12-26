@@ -1,7 +1,7 @@
 /**
  * 包过滤器类型
  */
-export type PackageFilter = 'all' | 'formula' | 'cask' | 'outdated';
+export type PackageFilter = 'all' | 'formula' | 'cask' | 'outdated' | 'favorites';
 
 /**
  * 排序选项
@@ -24,6 +24,11 @@ export type Theme = 'light' | 'dark' | 'system';
 export type Language = 'zh' | 'en';
 
 /**
+ * 自动刷新间隔选项（分钟）
+ */
+export type AutoRefreshInterval = 0 | 5 | 10 | 30 | 60;
+
+/**
  * 用户偏好设置
  */
 export interface UserPreferences {
@@ -37,6 +42,26 @@ export interface UserPreferences {
   theme: Theme;
   /** 语言 */
   language: Language;
+  /** 自动刷新间隔（分钟，0表示关闭） */
+  autoRefreshInterval: AutoRefreshInterval;
+  /** 收藏的包 */
+  favorites: string[];
+}
+
+/**
+ * 操作历史记录
+ */
+export interface OperationHistory {
+  /** 唯一ID */
+  id: string;
+  /** 操作类型 */
+  type: 'install' | 'uninstall' | 'upgrade' | 'update' | 'cleanup';
+  /** 包名（如果适用） */
+  packageName?: string;
+  /** 是否成功 */
+  success: boolean;
+  /** 时间戳 */
+  timestamp: number;
 }
 
 /**
@@ -48,6 +73,8 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   sortDirection: 'asc',
   theme: 'system',
   language: 'zh',
+  autoRefreshInterval: 0,
+  favorites: [],
 };
 
 /**
@@ -58,6 +85,7 @@ export const FILTER_LABELS: Record<PackageFilter, string> = {
   formula: 'Formula',
   cask: 'Cask',
   outdated: '可更新',
+  favorites: '收藏',
 };
 
 /**

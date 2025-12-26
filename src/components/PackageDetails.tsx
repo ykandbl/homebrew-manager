@@ -8,10 +8,12 @@ interface PackageDetailsProps {
   packageInfo: PackageInfo | null;
   isLoading: boolean;
   isPinned: boolean;
+  isFavorite: boolean;
   onInstall: () => void;
   onUninstall: () => void;
   onUpdate: () => void;
   onPin: () => void;
+  onToggleFavorite: () => void;
   onViewDeps: () => void;
   lang: Language;
 }
@@ -21,10 +23,12 @@ export function PackageDetails({
   packageInfo,
   isLoading,
   isPinned,
+  isFavorite,
   onInstall,
   onUninstall,
   onUpdate,
   onPin,
+  onToggleFavorite,
   onViewDeps,
   lang,
 }: PackageDetailsProps) {
@@ -47,12 +51,19 @@ export function PackageDetails({
     <div className="package-details">
       <div className="package-details__header">
         <div className="package-details__title">
-          <h2>{isPinned && <span className="pin-icon">📌</span>}{pkg.name}</h2>
+          <h2>
+            {isFavorite && <span className="favorite-icon">⭐</span>}
+            {isPinned && <span className="pin-icon">📌</span>}
+            {pkg.name}
+          </h2>
           <span className={`package-details__type package-details__type--${pkg.type}`}>
             {pkg.type}
           </span>
         </div>
         <div className="package-details__actions">
+          <button className="btn-icon" onClick={onToggleFavorite} title={t(isFavorite ? 'removeFromFavorites' : 'addToFavorites', lang)}>
+            {isFavorite ? '💔' : '⭐'}
+          </button>
           {pkg.installed ? (
             <>
               {pkg.outdated && !isPinned && (
