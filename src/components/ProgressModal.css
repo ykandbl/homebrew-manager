@@ -1,0 +1,157 @@
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.progress-modal {
+  background-color: var(--bg-secondary);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 20px var(--shadow);
+}
+
+.progress-modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.progress-modal__header h3 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.progress-modal__close {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.progress-modal__close:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.progress-modal__status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  font-size: 1rem;
+}
+
+.progress-modal__spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.progress-modal__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.progress-modal__icon--success {
+  background-color: rgba(74, 222, 128, 0.2);
+  color: var(--success);
+}
+
+.progress-modal__icon--error {
+  background-color: rgba(233, 69, 96, 0.2);
+  color: var(--accent);
+}
+
+.progress-modal__error {
+  margin: 0 1.5rem;
+  padding: 1rem;
+  background-color: rgba(233, 69, 96, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(233, 69, 96, 0.3);
+}
+
+.progress-modal__error strong {
+  color: var(--accent);
+  font-size: 0.875rem;
+}
+
+.progress-modal__error p {
+  margin: 0.5rem 0 0 0;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+
+.progress-modal__output {
+  margin: 1rem 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.progress-modal__output-header {
+  padding: 0.5rem 1rem;
+  background-color: var(--bg-tertiary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.progress-modal__output-content {
+  margin: 0;
+  padding: 1rem;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  background-color: var(--bg-primary);
+  overflow-y: auto;
+  max-height: 200px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.progress-modal__actions {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+}

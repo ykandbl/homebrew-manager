@@ -1,0 +1,111 @@
+.package-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+
+.package-list--loading,
+.package-list--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+  gap: 1rem;
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.package-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  background-color: var(--bg-secondary);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.package-item:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.package-item--selected {
+  border-color: var(--accent);
+  background-color: var(--bg-tertiary);
+}
+
+.package-item__main {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.package-item__name {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.package-item__type {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.package-item__type--formula {
+  background-color: rgba(74, 222, 128, 0.2);
+  color: var(--success);
+}
+
+.package-item__type--cask {
+  background-color: rgba(251, 191, 36, 0.2);
+  color: var(--warning);
+}
+
+.package-item__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.package-item__version {
+  color: var(--text-secondary);
+}
+
+.package-item__badge {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.package-item__badge--outdated {
+  background-color: rgba(233, 69, 96, 0.2);
+  color: var(--accent);
+}
+
+.package-item__badge--installed {
+  background-color: rgba(74, 222, 128, 0.2);
+  color: var(--success);
+}
