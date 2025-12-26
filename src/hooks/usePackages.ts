@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
-import type { Package, PackageInfo, OutdatedPackage, CommandOutput, HomebrewInfo } from '../types';
+import type { Package, PackageInfo, OutdatedPackage, CommandOutput, HomebrewInfo, DependencyInfo } from '../types';
 
 interface ProgressEvent {
   package: string;
@@ -11,6 +11,7 @@ interface ProgressEvent {
 
 interface UsePackagesReturn {
   packages: Package[];
+  pinnedPackages: string[];
   isLoading: boolean;
   error: string | null;
   selectedPackage: Package | null;
@@ -26,12 +27,16 @@ interface UsePackagesReturn {
   upgradeAll: (onProgress: (line: string) => void) => Promise<CommandOutput>;
   updateHomebrew: (onProgress: (line: string) => void) => Promise<CommandOutput>;
   cleanupHomebrew: (onProgress: (line: string) => void) => Promise<CommandOutput>;
+  pinPackage: (name: string) => Promise<CommandOutput>;
+  unpinPackage: (name: string) => Promise<CommandOutput>;
+  getDependencies: (name: string, isCask: boolean) => Promise<DependencyInfo>;
   getOutdated: () => Promise<OutdatedPackage[]>;
   refreshHomebrewInfo: () => Promise<void>;
 }
 
 export function usePackages(): UsePackagesReturn {
   const [packages, setPackages] = useState<Package[]>([]);
+  const [pinnedPackages, setPinnedPackages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedPackage, setSelectedPackage] = useState<Package | null>(null);
@@ -39,18 +44,28 @@ export function usePackages(): UsePackagesReturn {
   const [isLoadingInfo, setIsLoadingInfo] = useState(false);
   const [homebrewInfo, setHomebrewInfo] = useState<HomebrewInfo | null>(null);
 
+  const refreshPinned = useCallback(async () => {
+    try {
+      const pinned = await invoke<string[]>('get_pinned');
+      setPinnedPackages(pinned);
+    } catch (e) {
+      console.error('Failed to get pinned packages:', e);
+    }
+  }, []);
+
   const refresh = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
       const installed = await invoke<Package[]>('list_installed');
       setPackages(installed);
+      await refreshPinned();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [refreshPinned]);
 
   const selectPackage = useCallback(async (pkg: Package | null) => {
     setSelectedPackage(pkg);
@@ -215,6 +230,26 @@ export function usePackages(): UsePackagesReturn {
     }
   }, []);
 
+  const pinPackage = useCallback(async (name: string): Promise<CommandOutput> => {
+    const result = await invoke<CommandOutput>('pin_package', { name });
+    if (result.success) {
+      await refreshPinned();
+    }
+    return result;
+  }, [refreshPinned]);
+
+  const unpinPackage = useCallback(async (name: string): Promise<CommandOutput> => {
+    const result = await invoke<CommandOutput>('unpin_package', { name });
+    if (result.success) {
+      await refreshPinned();
+    }
+    return result;
+  }, [refreshPinned]);
+
+  const getDependencies = useCallback(async (name: string, isCask: boolean): Promise<DependencyInfo> => {
+    return await invoke<DependencyInfo>('get_dependencies', { name, isCask });
+  }, []);
+
   useEffect(() => {
     refresh();
     refreshHomebrewInfo();
@@ -222,6 +257,7 @@ export function usePackages(): UsePackagesReturn {
 
   return {
     packages,
+    pinnedPackages,
     isLoading,
     error,
     selectedPackage,
@@ -237,6 +273,9 @@ export function usePackages(): UsePackagesReturn {
     upgradeAll,
     updateHomebrew,
     cleanupHomebrew,
+    pinPackage,
+    unpinPackage,
+    getDependencies,
     getOutdated,
     refreshHomebrewInfo,
   };

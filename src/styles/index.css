@@ -231,3 +231,53 @@ input:focus {
 input::placeholder {
   color: var(--text-secondary);
 }
+
+
+/* Dependencies Modal */
+.deps-modal {
+  background-color: var(--bg-secondary);
+  border-radius: 12px;
+  padding: 1.5rem;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.deps-modal h3 {
+  margin-bottom: 1rem;
+  font-size: 1.25rem;
+}
+
+.deps-section {
+  margin-bottom: 1.5rem;
+}
+
+.deps-section h4 {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+.deps-section ul {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.deps-section li {
+  background-color: var(--bg-tertiary);
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.no-deps {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.pin-icon {
+  margin-right: 0.25rem;
+}

@@ -563,3 +563,76 @@ fn get_directory_size(path: &str) -> Result<u64, String> {
         Ok(0)
     }
 }
+
+
+/// 锁定包版本（brew pin）
+#[tauri::command]
+pub async fn pin_package(name: String) -> Result<CommandOutput, String> {
+    execute_brew_command(&["pin", &name])
+}
+
+/// 解锁包版本（brew unpin）
+#[tauri::command]
+pub async fn unpin_package(name: String) -> Result<CommandOutput, String> {
+    execute_brew_command(&["unpin", &name])
+}
+
+/// 获取已锁定的包列表
+#[tauri::command]
+pub async fn get_pinned() -> Result<Vec<String>, String> {
+    let output = execute_brew_command(&["list", "--pinned"])?;
+    
+    if !output.success {
+        return Ok(vec![]);
+    }
+    
+    let pinned: Vec<String> = output.stdout
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| line.trim().to_string())
+        .collect();
+    
+    Ok(pinned)
+}
+
+/// 获取包的依赖关系
+#[tauri::command]
+pub async fn get_dependencies(name: String, is_cask: bool) -> Result<DependencyInfo, String> {
+    let mut deps = Vec::new();
+    let mut reverse_deps = Vec::new();
+    
+    if !is_cask {
+        // 获取依赖
+        let deps_output = execute_brew_command(&["deps", "--installed", &name])?;
+        if deps_output.success {
+            deps = deps_output.stdout
+                .lines()
+                .filter(|line| !line.trim().is_empty())
+                .map(|line| line.trim().to_string())
+                .collect();
+        }
+        
+        // 获取反向依赖（谁依赖这个包）
+        let uses_output = execute_brew_command(&["uses", "--installed", &name])?;
+        if uses_output.success {
+            reverse_deps = uses_output.stdout
+                .lines()
+                .filter(|line| !line.trim().is_empty())
+                .map(|line| line.trim().to_string())
+                .collect();
+        }
+    }
+    
+    Ok(DependencyInfo {
+        name,
+        dependencies: deps,
+        reverse_dependencies: reverse_deps,
+    })
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DependencyInfo {
+    pub name: String,
+    pub dependencies: Vec<String>,
+    pub reverse_dependencies: Vec<String>,
+}

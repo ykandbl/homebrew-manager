@@ -1,9 +1,9 @@
 mod homebrew;
 
 use homebrew::{
-    check_homebrew, cleanup_homebrew, get_homebrew_info, get_outdated, get_package_info,
-    install_package, list_installed, search_packages, uninstall_package, update_homebrew,
-    upgrade_all, upgrade_package,
+    check_homebrew, cleanup_homebrew, get_dependencies, get_homebrew_info, get_outdated,
+    get_package_info, get_pinned, install_package, list_installed, pin_package, search_packages,
+    uninstall_package, unpin_package, update_homebrew, upgrade_all, upgrade_package,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -23,6 +23,10 @@ pub fn run() {
             update_homebrew,
             cleanup_homebrew,
             get_homebrew_info,
+            pin_package,
+            unpin_package,
+            get_pinned,
+            get_dependencies,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

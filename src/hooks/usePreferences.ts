@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import type { UserPreferences, PackageFilter, SortOption, SortDirection, Theme } from '../types/preferences';
+import type { UserPreferences, PackageFilter, SortOption, SortDirection, Theme, Language } from '../types/preferences';
 import { DEFAULT_PREFERENCES } from '../types/preferences';
 
 const STORAGE_KEY = 'homebrew-manager-preferences';
@@ -10,6 +10,7 @@ interface UsePreferencesReturn {
   setSortBy: (sortBy: SortOption) => void;
   setSortDirection: (direction: SortDirection) => void;
   setTheme: (theme: Theme) => void;
+  setLanguage: (language: Language) => void;
   resetPreferences: () => void;
 }
 
@@ -83,6 +84,10 @@ export function usePreferences(): UsePreferencesReturn {
     setPreferences(prev => ({ ...prev, theme }));
   }, []);
 
+  const setLanguage = useCallback((language: Language) => {
+    setPreferences(prev => ({ ...prev, language }));
+  }, []);
+
   const resetPreferences = useCallback(() => {
     setPreferences(DEFAULT_PREFERENCES);
   }, []);
@@ -93,6 +98,7 @@ export function usePreferences(): UsePreferencesReturn {
     setSortBy,
     setSortDirection,
     setTheme,
+    setLanguage,
     resetPreferences,
   };
 }

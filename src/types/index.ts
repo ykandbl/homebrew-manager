@@ -114,3 +114,15 @@ export interface HomebrewInfo {
   /** 缓存大小（字节） */
   cacheSize: number;
 }
+
+/**
+ * 依赖信息
+ */
+export interface DependencyInfo {
+  /** 包名 */
+  name: string;
+  /** 依赖列表 */
+  dependencies: string[];
+  /** 反向依赖（被谁依赖） */
+  reverseDependencies: string[];
+}

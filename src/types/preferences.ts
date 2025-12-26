@@ -19,6 +19,11 @@ export type SortDirection = 'asc' | 'desc';
 export type Theme = 'light' | 'dark' | 'system';
 
 /**
+ * 语言选项
+ */
+export type Language = 'zh' | 'en';
+
+/**
  * 用户偏好设置
  */
 export interface UserPreferences {
@@ -30,6 +35,8 @@ export interface UserPreferences {
   sortDirection: SortDirection;
   /** 主题 */
   theme: Theme;
+  /** 语言 */
+  language: Language;
 }
 
 /**
@@ -40,6 +47,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   sortBy: 'name',
   sortDirection: 'asc',
   theme: 'system',
+  language: 'zh',
 };
 
 /**

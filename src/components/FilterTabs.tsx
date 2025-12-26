@@ -1,5 +1,5 @@
-import type { PackageFilter } from '../types/preferences';
-import { FILTER_LABELS } from '../types/preferences';
+import type { PackageFilter, Language } from '../types/preferences';
+import { t } from '../i18n';
 import './FilterTabs.css';
 
 interface FilterTabsProps {
@@ -11,11 +11,19 @@ interface FilterTabsProps {
     cask: number;
     outdated: number;
   };
+  lang: Language;
 }
 
 const FILTERS: PackageFilter[] = ['all', 'formula', 'cask', 'outdated'];
 
-export function FilterTabs({ activeFilter, onChange, counts }: FilterTabsProps) {
+const FILTER_KEYS: Record<PackageFilter, 'filterAll' | 'filterFormula' | 'filterCask' | 'filterOutdated'> = {
+  all: 'filterAll',
+  formula: 'filterFormula',
+  cask: 'filterCask',
+  outdated: 'filterOutdated',
+};
+
+export function FilterTabs({ activeFilter, onChange, counts, lang }: FilterTabsProps) {
   return (
     <div className="filter-tabs">
       {FILTERS.map((filter) => (
@@ -24,7 +32,7 @@ export function FilterTabs({ activeFilter, onChange, counts }: FilterTabsProps) 
           className={`filter-tab ${activeFilter === filter ? 'filter-tab--active' : ''}`}
           onClick={() => onChange(filter)}
         >
-          <span className="filter-tab__label">{FILTER_LABELS[filter]}</span>
+          <span className="filter-tab__label">{t(FILTER_KEYS[filter], lang)}</span>
           <span className="filter-tab__count">{counts[filter]}</span>
         </button>
       ))}

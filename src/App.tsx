@@ -12,7 +12,8 @@ import { Toast, ToastType } from './components/Toast';
 import { ErrorPage } from './components/ErrorPage';
 import { filterPackages, getFilterCounts } from './utils/filter';
 import { sortPackages } from './utils/sort';
-import type { Package, OperationType, OperationStatus } from './types';
+import { t } from './i18n';
+import type { Package, OperationType, OperationStatus, DependencyInfo } from './types';
 import './styles/index.css';
 
 function App() {
@@ -21,8 +22,9 @@ function App() {
   const [searchResults, setSearchResults] = useState<Package[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showDeps, setShowDeps] = useState(false);
+  const [depsInfo, setDepsInfo] = useState<DependencyInfo | null>(null);
   
-  // 操作状态
   const [operation, setOperation] = useState<{
     type: OperationType;
     packageName: string;
@@ -31,7 +33,6 @@ function App() {
     error?: string;
   } | null>(null);
   
-  // 确认对话框
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -40,7 +41,6 @@ function App() {
     onConfirm: () => void;
   }>({ isOpen: false, title: '', message: '', confirmText: '', onConfirm: () => {} });
   
-  // Toast 提示
   const [toast, setToast] = useState<{
     isVisible: boolean;
     message: string;
@@ -48,328 +48,151 @@ function App() {
   }>({ isVisible: false, message: '', type: 'info' });
 
   const {
-    packages,
-    isLoading,
-    error,
-    selectedPackage,
-    packageInfo,
-    isLoadingInfo,
-    homebrewInfo,
-    refresh,
-    selectPackage,
-    searchPackages,
-    installPackage,
-    uninstallPackage,
-    upgradePackage,
-    upgradeAll,
-    updateHomebrew,
-    cleanupHomebrew,
-    refreshHomebrewInfo,
+    packages, pinnedPackages, isLoading, error, selectedPackage, packageInfo,
+    isLoadingInfo, homebrewInfo, refresh, selectPackage, searchPackages,
+    installPackage, uninstallPackage, upgradePackage, upgradeAll,
+    updateHomebrew, cleanupHomebrew, pinPackage, unpinPackage,
+    getDependencies, refreshHomebrewInfo,
   } = usePackages();
 
-  const { preferences, setFilter, setTheme } = usePreferences();
+  const { preferences, setFilter, setTheme, setLanguage } = usePreferences();
+  const lang = preferences.language;
 
-  // 检查 Homebrew 是否安装
   useEffect(() => {
-    invoke<boolean>('check_homebrew')
-      .then(setHomebrewInstalled)
-      .catch(() => setHomebrewInstalled(false));
+    invoke<boolean>('check_homebrew').then(setHomebrewInstalled).catch(() => setHomebrewInstalled(false));
   }, []);
 
-  // 处理搜索
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey) {
+        if (e.key === 'f') { e.preventDefault(); document.querySelector<HTMLInputElement>('.search-bar input')?.focus(); }
+        else if (e.key === 'r') { e.preventDefault(); refresh(); }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [refresh]);
+
   const handleSearch = useCallback(async (query: string) => {
     setSearchQuery(query);
-    if (!query.trim()) {
-      setSearchResults([]);
-      return;
-    }
-    
+    if (!query.trim()) { setSearchResults([]); return; }
     setIsSearching(true);
     try {
       const results = await searchPackages(query);
       const installedNames = new Set(packages.map(p => p.name));
-      const markedResults = results.map(pkg => ({
-        ...pkg,
-        installed: installedNames.has(pkg.name),
-      }));
-      setSearchResults(markedResults);
-    } finally {
-      setIsSearching(false);
-    }
+      setSearchResults(results.map(pkg => ({ ...pkg, installed: installedNames.has(pkg.name) })));
+    } finally { setIsSearching(false); }
   }, [searchPackages, packages]);
 
-  // 显示的包列表
   const displayPackages = useMemo(() => {
     const source = searchQuery ? searchResults : packages;
-    const filtered = filterPackages(source, preferences.filter);
-    return sortPackages(filtered, preferences.sortBy, preferences.sortDirection);
+    return sortPackages(filterPackages(source, preferences.filter), preferences.sortBy, preferences.sortDirection);
   }, [searchQuery, searchResults, packages, preferences]);
 
-  // 过滤器计数
-  const filterCounts = useMemo(() => {
-    const source = searchQuery ? searchResults : packages;
-    return getFilterCounts(source);
-  }, [searchQuery, searchResults, packages]);
+  const filterCounts = useMemo(() => getFilterCounts(searchQuery ? searchResults : packages), [searchQuery, searchResults, packages]);
+  const outdatedCount = useMemo(() => packages.filter(p => p.outdated).length, [packages]);
+  const handleProgress = useCallback((line: string) => { setOperation(prev => prev ? { ...prev, output: [...prev.output, line] } : null); }, []);
 
-  // 过时包数量
-  const outdatedCount = useMemo(() => {
-    return packages.filter(p => p.outdated).length;
-  }, [packages]);
-
-  // 实时进度回调
-  const handleProgress = useCallback((line: string) => {
-    setOperation(prev => {
-      if (!prev) return null;
-      return { ...prev, output: [...prev.output, line] };
-    });
-  }, []);
-
-  // 执行安装
   const handleInstall = useCallback(async () => {
     if (!selectedPackage) return;
-    
-    setOperation({
-      type: 'install',
-      packageName: selectedPackage.name,
-      status: 'pending',
-      output: [],
-    });
-
+    setOperation({ type: 'install', packageName: selectedPackage.name, status: 'pending', output: [] });
     try {
-      const result = await installPackage(
-        selectedPackage.name,
-        selectedPackage.type === 'cask',
-        handleProgress
-      );
-      
-      setOperation(prev => prev ? {
-        ...prev,
-        status: result.success ? 'success' : 'error',
-        error: result.success ? undefined : result.stderr,
-      } : null);
+      const result = await installPackage(selectedPackage.name, selectedPackage.type === 'cask', handleProgress);
+      setOperation(prev => prev ? { ...prev, status: result.success ? 'success' : 'error', error: result.success ? undefined : result.stderr } : null);
+      if (result.success) { await refresh(); setToast({ isVisible: true, message: t('installSuccess', lang), type: 'success' }); }
+    } catch (e) { setOperation(prev => prev ? { ...prev, status: 'error', error: e instanceof Error ? e.message : String(e) } : null); }
+  }, [selectedPackage, installPackage, refresh, handleProgress, lang]);
 
-      if (result.success) {
-        await refresh();
-        setToast({ isVisible: true, message: '安装成功', type: 'success' });
-      }
-    } catch (e) {
-      setOperation(prev => prev ? {
-        ...prev,
-        status: 'error',
-        error: e instanceof Error ? e.message : String(e),
-      } : null);
-    }
-  }, [selectedPackage, installPackage, refresh, handleProgress]);
-
-  // 确认卸载
   const handleUninstallConfirm = useCallback(() => {
     if (!selectedPackage) return;
     setConfirmDialog({
-      isOpen: true,
-      title: '确认卸载',
-      message: `确定要卸载 ${selectedPackage.name} 吗？此操作无法撤销。`,
-      confirmText: '卸载',
+      isOpen: true, title: t('confirmUninstall', lang),
+      message: t('confirmUninstallMsg', lang, { name: selectedPackage.name }),
+      confirmText: t('uninstall', lang),
       onConfirm: async () => {
         setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-        
-        setOperation({
-          type: 'uninstall',
-          packageName: selectedPackage.name,
-          status: 'pending',
-          output: [],
-        });
-
+        setOperation({ type: 'uninstall', packageName: selectedPackage.name, status: 'pending', output: [] });
         try {
-          const result = await uninstallPackage(
-            selectedPackage.name,
-            selectedPackage.type === 'cask',
-            handleProgress
-          );
-          
-          setOperation(prev => prev ? {
-            ...prev,
-            status: result.success ? 'success' : 'error',
-            error: result.success ? undefined : result.stderr,
-          } : null);
-
-          if (result.success) {
-            selectPackage(null);
-            await refresh();
-            setToast({ isVisible: true, message: '卸载成功', type: 'success' });
-          }
-        } catch (e) {
-          setOperation(prev => prev ? {
-            ...prev,
-            status: 'error',
-            error: e instanceof Error ? e.message : String(e),
-          } : null);
-        }
+          const result = await uninstallPackage(selectedPackage.name, selectedPackage.type === 'cask', handleProgress);
+          setOperation(prev => prev ? { ...prev, status: result.success ? 'success' : 'error', error: result.success ? undefined : result.stderr } : null);
+          if (result.success) { selectPackage(null); await refresh(); setToast({ isVisible: true, message: t('uninstallSuccess', lang), type: 'success' }); }
+        } catch (e) { setOperation(prev => prev ? { ...prev, status: 'error', error: e instanceof Error ? e.message : String(e) } : null); }
       },
     });
-  }, [selectedPackage, uninstallPackage, refresh, selectPackage, handleProgress]);
+  }, [selectedPackage, uninstallPackage, refresh, selectPackage, handleProgress, lang]);
 
-  // 执行更新单个包
   const handleUpdate = useCallback(async () => {
     if (!selectedPackage) return;
-
-    setOperation({
-      type: 'upgrade',
-      packageName: selectedPackage.name,
-      status: 'pending',
-      output: [],
-    });
-
+    setOperation({ type: 'upgrade', packageName: selectedPackage.name, status: 'pending', output: [] });
     try {
-      const result = await upgradePackage(
-        selectedPackage.name,
-        selectedPackage.type === 'cask',
-        handleProgress
-      );
-      
-      setOperation(prev => prev ? {
-        ...prev,
-        status: result.success ? 'success' : 'error',
-        error: result.success ? undefined : result.stderr,
-      } : null);
+      const result = await upgradePackage(selectedPackage.name, selectedPackage.type === 'cask', handleProgress);
+      setOperation(prev => prev ? { ...prev, status: result.success ? 'success' : 'error', error: result.success ? undefined : result.stderr } : null);
+      if (result.success) { await refresh(); setToast({ isVisible: true, message: t('updateSuccess', lang), type: 'success' }); }
+    } catch (e) { setOperation(prev => prev ? { ...prev, status: 'error', error: e instanceof Error ? e.message : String(e) } : null); }
+  }, [selectedPackage, upgradePackage, refresh, handleProgress, lang]);
 
-      if (result.success) {
-        await refresh();
-        setToast({ isVisible: true, message: '更新成功', type: 'success' });
-      }
-    } catch (e) {
-      setOperation(prev => prev ? {
-        ...prev,
-        status: 'error',
-        error: e instanceof Error ? e.message : String(e),
-      } : null);
-    }
-  }, [selectedPackage, upgradePackage, refresh, handleProgress]);
-
-  // 更新所有过时包
   const handleUpgradeAll = useCallback(() => {
     if (outdatedCount === 0) return;
-    
     setConfirmDialog({
-      isOpen: true,
-      title: '更新所有包',
-      message: `确定要更新全部 ${outdatedCount} 个过时的软件包吗？`,
-      confirmText: '全部更新',
+      isOpen: true, title: t('confirmUpdateAll', lang),
+      message: t('confirmUpdateAllMsg', lang, { count: outdatedCount }),
+      confirmText: t('updateAll', lang),
       onConfirm: async () => {
         setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-        
-        setOperation({
-          type: 'upgrade_all',
-          packageName: `${outdatedCount} 个包`,
-          status: 'pending',
-          output: [],
-        });
-
+        setOperation({ type: 'upgrade_all', packageName: `${outdatedCount} packages`, status: 'pending', output: [] });
         try {
           const result = await upgradeAll(handleProgress);
-          
-          setOperation(prev => prev ? {
-            ...prev,
-            status: result.success ? 'success' : 'error',
-            error: result.success ? undefined : result.stderr,
-          } : null);
-
-          if (result.success) {
-            await refresh();
-            setToast({ isVisible: true, message: '全部更新成功', type: 'success' });
-          }
-        } catch (e) {
-          setOperation(prev => prev ? {
-            ...prev,
-            status: 'error',
-            error: e instanceof Error ? e.message : String(e),
-          } : null);
-        }
+          setOperation(prev => prev ? { ...prev, status: result.success ? 'success' : 'error', error: result.success ? undefined : result.stderr } : null);
+          if (result.success) { await refresh(); setToast({ isVisible: true, message: t('allUpdateSuccess', lang), type: 'success' }); }
+        } catch (e) { setOperation(prev => prev ? { ...prev, status: 'error', error: e instanceof Error ? e.message : String(e) } : null); }
       },
     });
-  }, [outdatedCount, upgradeAll, refresh, handleProgress]);
+  }, [outdatedCount, upgradeAll, refresh, handleProgress, lang]);
 
-  // 更新 Homebrew
   const handleUpdateHomebrew = useCallback(async () => {
-    setOperation({
-      type: 'update',
-      packageName: 'Homebrew',
-      status: 'pending',
-      output: [],
-    });
-
+    setOperation({ type: 'update', packageName: 'Homebrew', status: 'pending', output: [] });
     try {
       const result = await updateHomebrew(handleProgress);
-      
-      setOperation(prev => prev ? {
-        ...prev,
-        status: result.success ? 'success' : 'error',
-        error: result.success ? undefined : result.stderr,
-      } : null);
+      setOperation(prev => prev ? { ...prev, status: result.success ? 'success' : 'error', error: result.success ? undefined : result.stderr } : null);
+      if (result.success) { await refresh(); await refreshHomebrewInfo(); setToast({ isVisible: true, message: t('homebrewUpdateSuccess', lang), type: 'success' }); }
+    } catch (e) { setOperation(prev => prev ? { ...prev, status: 'error', error: e instanceof Error ? e.message : String(e) } : null); }
+  }, [updateHomebrew, refresh, refreshHomebrewInfo, handleProgress, lang]);
 
-      if (result.success) {
-        await refresh();
-        await refreshHomebrewInfo();
-        setToast({ isVisible: true, message: 'Homebrew 更新成功', type: 'success' });
-      }
-    } catch (e) {
-      setOperation(prev => prev ? {
-        ...prev,
-        status: 'error',
-        error: e instanceof Error ? e.message : String(e),
-      } : null);
-    }
-  }, [updateHomebrew, refresh, refreshHomebrewInfo, handleProgress]);
-
-  // 清理缓存
   const handleCleanup = useCallback(() => {
-    const cacheSize = homebrewInfo?.cacheSize ?? 0;
-    const cacheSizeMB = (cacheSize / 1024 / 1024).toFixed(1);
-    
+    const cacheSizeMB = ((homebrewInfo?.cacheSize ?? 0) / 1024 / 1024).toFixed(1) + ' MB';
     setConfirmDialog({
-      isOpen: true,
-      title: '清理缓存',
-      message: `确定要清理 Homebrew 缓存吗？当前缓存大小约 ${cacheSizeMB} MB。`,
-      confirmText: '清理',
+      isOpen: true, title: t('confirmCleanup', lang),
+      message: t('confirmCleanupMsg', lang, { size: cacheSizeMB }),
+      confirmText: t('cleanup', lang),
       onConfirm: async () => {
         setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-        
-        setOperation({
-          type: 'cleanup',
-          packageName: '缓存',
-          status: 'pending',
-          output: [],
-        });
-
+        setOperation({ type: 'cleanup', packageName: 'Cache', status: 'pending', output: [] });
         try {
           const result = await cleanupHomebrew(handleProgress);
-          
-          setOperation(prev => prev ? {
-            ...prev,
-            status: result.success ? 'success' : 'error',
-            error: result.success ? undefined : result.stderr,
-          } : null);
-
-          if (result.success) {
-            await refreshHomebrewInfo();
-            setToast({ isVisible: true, message: '缓存清理成功', type: 'success' });
-          }
-        } catch (e) {
-          setOperation(prev => prev ? {
-            ...prev,
-            status: 'error',
-            error: e instanceof Error ? e.message : String(e),
-          } : null);
-        }
+          setOperation(prev => prev ? { ...prev, status: result.success ? 'success' : 'error', error: result.success ? undefined : result.stderr } : null);
+          if (result.success) { await refreshHomebrewInfo(); setToast({ isVisible: true, message: t('cleanupSuccess', lang), type: 'success' }); }
+        } catch (e) { setOperation(prev => prev ? { ...prev, status: 'error', error: e instanceof Error ? e.message : String(e) } : null); }
       },
     });
-  }, [homebrewInfo, cleanupHomebrew, refreshHomebrewInfo, handleProgress]);
+  }, [homebrewInfo, cleanupHomebrew, refreshHomebrewInfo, handleProgress, lang]);
 
-  // 关闭操作模态框
-  const handleCloseOperation = useCallback(() => {
-    setOperation(null);
-  }, []);
+  const handlePin = useCallback(async () => {
+    if (!selectedPackage) return;
+    const isPinned = pinnedPackages.includes(selectedPackage.name);
+    try {
+      const result = isPinned ? await unpinPackage(selectedPackage.name) : await pinPackage(selectedPackage.name);
+      if (result.success) setToast({ isVisible: true, message: t(isPinned ? 'unpinSuccess' : 'pinSuccess', lang), type: 'success' });
+    } catch { setToast({ isVisible: true, message: t('operationFailed', lang), type: 'error' }); }
+  }, [selectedPackage, pinnedPackages, pinPackage, unpinPackage, lang]);
 
-  // 格式化缓存大小
+  const handleViewDeps = useCallback(async () => {
+    if (!selectedPackage) return;
+    try {
+      const deps = await getDependencies(selectedPackage.name, selectedPackage.type === 'cask');
+      setDepsInfo(deps); setShowDeps(true);
+    } catch { setToast({ isVisible: true, message: t('operationFailed', lang), type: 'error' }); }
+  }, [selectedPackage, getDependencies, lang]);
+
   const formatCacheSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -377,151 +200,76 @@ function App() {
     return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
   };
 
-  // Homebrew 未安装
   if (homebrewInstalled === false) {
-    return (
-      <ErrorPage
-        title="Homebrew 未安装"
-        message="请先安装 Homebrew 才能使用此应用。Homebrew 是 macOS 上最流行的包管理器。"
-        actionText="安装 Homebrew"
-        actionUrl="https://brew.sh"
-        onRetry={() => invoke<boolean>('check_homebrew').then(setHomebrewInstalled)}
-      />
-    );
+    return <ErrorPage title={t('homebrewNotInstalled', lang)} message={t('homebrewNotInstalledMsg', lang)} actionText={t('installHomebrew', lang)} actionUrl="https://brew.sh" onRetry={() => invoke<boolean>('check_homebrew').then(setHomebrewInstalled)} />;
+  }
+  if (homebrewInstalled === null) {
+    return <div className="loading"><div className="loading-spinner" /><span>{t('checkingHomebrew', lang)}</span></div>;
   }
 
-  // 加载中
-  if (homebrewInstalled === null) {
-    return (
-      <div className="loading">
-        <div className="loading-spinner" />
-        <span>检查 Homebrew...</span>
-      </div>
-    );
-  }
+  const isPinned = selectedPackage ? pinnedPackages.includes(selectedPackage.name) : false;
 
   return (
     <div className="app">
       <header className="app-header">
-        <h1>🍺 Homebrew Manager</h1>
+        <h1>{t('appTitle', lang)}</h1>
         <div className="header-actions">
-          {outdatedCount > 0 && (
-            <button className="btn-warning" onClick={handleUpgradeAll}>
-              更新全部 ({outdatedCount})
-            </button>
-          )}
-          <button className="btn-secondary" onClick={handleUpdateHomebrew}>
-            更新 Homebrew
-          </button>
-          <button className="btn-secondary" onClick={handleCleanup}>
-            清理缓存
-          </button>
-          <button className="btn-secondary" onClick={refresh} disabled={isLoading}>
-            刷新
-          </button>
-          <button 
-            className="btn-icon" 
-            onClick={() => setShowSettings(!showSettings)}
-            title="设置"
-          >
-            ⚙️
-          </button>
+          {outdatedCount > 0 && <button className="btn-warning" onClick={handleUpgradeAll}>{t('updateAll', lang)} ({outdatedCount})</button>}
+          <button className="btn-secondary" onClick={handleUpdateHomebrew}>{t('updateHomebrew', lang)}</button>
+          <button className="btn-secondary" onClick={handleCleanup}>{t('cleanup', lang)}</button>
+          <button className="btn-secondary" onClick={refresh} disabled={isLoading}>{t('refresh', lang)}</button>
+          <button className="btn-icon" onClick={() => setShowSettings(!showSettings)} title={t('settings', lang)}>⚙️</button>
         </div>
       </header>
 
       {showSettings && (
         <div className="settings-panel">
-          <div className="settings-item">
-            <span>主题</span>
-            <select 
-              value={preferences.theme} 
-              onChange={(e) => setTheme(e.target.value as 'light' | 'dark' | 'system')}
-            >
-              <option value="system">跟随系统</option>
-              <option value="light">浅色</option>
-              <option value="dark">深色</option>
+          <div className="settings-item"><span>{t('language', lang)}</span>
+            <select value={preferences.language} onChange={(e) => setLanguage(e.target.value as 'zh' | 'en')}>
+              <option value="zh">中文</option><option value="en">English</option>
             </select>
           </div>
-          {homebrewInfo && (
-            <div className="settings-info">
-              <div>版本: {homebrewInfo.version}</div>
-              <div>缓存: {formatCacheSize(homebrewInfo.cacheSize)}</div>
-            </div>
-          )}
+          <div className="settings-item"><span>{t('theme', lang)}</span>
+            <select value={preferences.theme} onChange={(e) => setTheme(e.target.value as 'light' | 'dark' | 'system')}>
+              <option value="system">{t('themeSystem', lang)}</option>
+              <option value="light">{t('themeLight', lang)}</option>
+              <option value="dark">{t('themeDark', lang)}</option>
+            </select>
+          </div>
+          {homebrewInfo && <div className="settings-info"><div>{t('version', lang)}: {homebrewInfo.version}</div><div>{t('cache', lang)}: {formatCacheSize(homebrewInfo.cacheSize)}</div></div>}
         </div>
       )}
 
       <div className="app-toolbar">
-        <SearchBar
-          onSearch={handleSearch}
-          isSearching={isSearching}
-          placeholder="搜索软件包..."
-        />
-        <FilterTabs
-          activeFilter={preferences.filter}
-          onChange={setFilter}
-          counts={filterCounts}
-        />
+        <SearchBar onSearch={handleSearch} isSearching={isSearching} placeholder={t('searchPlaceholder', lang)} />
+        <FilterTabs activeFilter={preferences.filter} onChange={setFilter} counts={filterCounts} lang={lang} />
       </div>
 
       <main className="app-content">
         <div className="app-sidebar">
-          <PackageList
-            packages={displayPackages}
-            selectedId={selectedPackage?.name ?? null}
-            onSelect={selectPackage}
-            isLoading={isLoading}
-          />
+          <PackageList packages={displayPackages} pinnedPackages={pinnedPackages} selectedId={selectedPackage?.name ?? null} onSelect={selectPackage} isLoading={isLoading} lang={lang} />
         </div>
         <div className="app-details">
-          <PackageDetails
-            package={selectedPackage}
-            packageInfo={packageInfo}
-            isLoading={isLoadingInfo}
-            onInstall={handleInstall}
-            onUninstall={handleUninstallConfirm}
-            onUpdate={handleUpdate}
-          />
+          <PackageDetails package={selectedPackage} packageInfo={packageInfo} isLoading={isLoadingInfo} isPinned={isPinned} onInstall={handleInstall} onUninstall={handleUninstallConfirm} onUpdate={handleUpdate} onPin={handlePin} onViewDeps={handleViewDeps} lang={lang} />
         </div>
       </main>
 
-      {error && (
-        <Toast
-          message={error}
-          type="error"
-          isVisible={true}
-          onClose={() => {}}
-          duration={5000}
-        />
+      {error && <Toast message={error} type="error" isVisible={true} onClose={() => {}} duration={5000} />}
+      <ProgressModal isOpen={operation !== null} operation={operation?.type ?? 'install'} packageName={operation?.packageName ?? ''} status={operation?.status ?? 'idle'} output={operation?.output ?? []} error={operation?.error} onClose={() => setOperation(null)} lang={lang} />
+      <ConfirmDialog isOpen={confirmDialog.isOpen} title={confirmDialog.title} message={confirmDialog.message} confirmText={confirmDialog.confirmText} cancelText={t('cancel', lang)} variant="danger" onConfirm={confirmDialog.onConfirm} onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))} />
+
+      {showDeps && depsInfo && (
+        <div className="modal-overlay" onClick={() => setShowDeps(false)}>
+          <div className="deps-modal" onClick={e => e.stopPropagation()}>
+            <h3>{t('dependencyTree', lang)}: {depsInfo.name}</h3>
+            <div className="deps-section"><h4>{t('dependsOn', lang)}</h4>{depsInfo.dependencies.length > 0 ? <ul>{depsInfo.dependencies.map(d => <li key={d}>{d}</li>)}</ul> : <p className="no-deps">{t('noDeps', lang)}</p>}</div>
+            <div className="deps-section"><h4>{t('requiredBy', lang)}</h4>{depsInfo.reverseDependencies.length > 0 ? <ul>{depsInfo.reverseDependencies.map(d => <li key={d}>{d}</li>)}</ul> : <p className="no-deps">{t('noReverseDeps', lang)}</p>}</div>
+            <button className="btn-primary" onClick={() => setShowDeps(false)}>{t('close', lang)}</button>
+          </div>
+        </div>
       )}
 
-      <ProgressModal
-        isOpen={operation !== null}
-        operation={operation?.type ?? 'install'}
-        packageName={operation?.packageName ?? ''}
-        status={operation?.status ?? 'idle'}
-        output={operation?.output ?? []}
-        error={operation?.error}
-        onClose={handleCloseOperation}
-      />
-
-      <ConfirmDialog
-        isOpen={confirmDialog.isOpen}
-        title={confirmDialog.title}
-        message={confirmDialog.message}
-        confirmText={confirmDialog.confirmText}
-        cancelText="取消"
-        variant="danger"
-        onConfirm={confirmDialog.onConfirm}
-        onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
-      />
-
-      <Toast
-        message={toast.message}
-        type={toast.type}
-        isVisible={toast.isVisible}
-        onClose={() => setToast(prev => ({ ...prev, isVisible: false }))}
-      />
+      <Toast message={toast.message} type={toast.type} isVisible={toast.isVisible} onClose={() => setToast(prev => ({ ...prev, isVisible: false }))} />
     </div>
   );
 }

@@ -1,4 +1,6 @@
 import type { OperationType, OperationStatus } from '../types';
+import type { Language } from '../types/preferences';
+import { t } from '../i18n';
 import './ProgressModal.css';
 
 interface ProgressModalProps {
@@ -9,16 +11,17 @@ interface ProgressModalProps {
   output: string[];
   error?: string;
   onClose: () => void;
+  lang: Language;
 }
 
-const OPERATION_LABELS: Record<OperationType, string> = {
-  install: '安装',
-  uninstall: '卸载',
-  upgrade: '更新',
-  search: '搜索',
-  update: '更新',
-  cleanup: '清理',
-  upgrade_all: '批量更新',
+const OPERATION_KEYS: Record<OperationType, 'install' | 'uninstall' | 'update' | 'cleanup' | 'update' | 'update'> = {
+  install: 'install',
+  uninstall: 'uninstall',
+  upgrade: 'update',
+  search: 'install',
+  update: 'update',
+  cleanup: 'cleanup',
+  upgrade_all: 'update',
 };
 
 export function ProgressModal({
@@ -29,18 +32,18 @@ export function ProgressModal({
   output,
   error,
   onClose,
+  lang,
 }: ProgressModalProps) {
   if (!isOpen) return null;
 
   const isComplete = status === 'success' || status === 'error';
+  const opLabel = t(OPERATION_KEYS[operation], lang);
 
   return (
     <div className="modal-overlay" onClick={isComplete ? onClose : undefined}>
       <div className="progress-modal" onClick={(e) => e.stopPropagation()}>
         <div className="progress-modal__header">
-          <h3>
-            {OPERATION_LABELS[operation]} {packageName}
-          </h3>
+          <h3>{opLabel} {packageName}</h3>
           {isComplete && (
             <button className="progress-modal__close" onClick={onClose}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -54,7 +57,7 @@ export function ProgressModal({
           {status === 'pending' && (
             <>
               <div className="progress-modal__spinner" />
-              <span>正在{OPERATION_LABELS[operation]}...</span>
+              <span>{lang === 'zh' ? `正在${opLabel}...` : `${opLabel}ing...`}</span>
             </>
           )}
           {status === 'success' && (
@@ -64,7 +67,7 @@ export function ProgressModal({
                   <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
                 </svg>
               </div>
-              <span>{OPERATION_LABELS[operation]}成功</span>
+              <span>{lang === 'zh' ? `${opLabel}成功` : `${opLabel} successful`}</span>
             </>
           )}
           {status === 'error' && (
@@ -74,32 +77,28 @@ export function ProgressModal({
                   <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
                 </svg>
               </div>
-              <span>{OPERATION_LABELS[operation]}失败</span>
+              <span>{t('operationFailed', lang)}</span>
             </>
           )}
         </div>
 
         {error && (
           <div className="progress-modal__error">
-            <strong>错误信息：</strong>
+            <strong>{t('errorInfo', lang)}:</strong>
             <p>{error}</p>
           </div>
         )}
 
         {output.length > 0 && (
           <div className="progress-modal__output">
-            <div className="progress-modal__output-header">输出日志</div>
-            <pre className="progress-modal__output-content">
-              {output.join('\n')}
-            </pre>
+            <div className="progress-modal__output-header">{t('outputLog', lang)}</div>
+            <pre className="progress-modal__output-content">{output.join('\n')}</pre>
           </div>
         )}
 
         {isComplete && (
           <div className="progress-modal__actions">
-            <button className="btn-primary" onClick={onClose}>
-              关闭
-            </button>
+            <button className="btn-primary" onClick={onClose}>{t('close', lang)}</button>
           </div>
         )}
       </div>
