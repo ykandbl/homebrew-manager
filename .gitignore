@@ -5,6 +5,9 @@ node_modules/
 dist/
 src-tauri/target/
 
+# Tauri generated files
+src-tauri/gen/
+
 # IDE
 .vscode/
 .idea/
@@ -26,5 +29,5 @@ coverage/
 .env
 .env.local
 
-# Tauri generated files
-src-tauri/gen/
+# Kiro specs (development only)
+.kiro/
