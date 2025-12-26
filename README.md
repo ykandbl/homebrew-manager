@@ -16,7 +16,11 @@ A macOS GUI for Homebrew package management built with Tauri + React + TypeScrip
 - ⬇️ One-click package installation
 - 🗑️ One-click package uninstallation
 - 🔄 Detect and update outdated packages
+- � Beatch update all outdated packages
+- 🔧 Update Homebrew itself
+- 🧹 Clean up cache
 - 📊 Real-time installation/uninstallation progress display
+- 🌓 Light/Dark theme support
 
 ### Screenshot
 
@@ -74,7 +78,11 @@ npm run tauri build
 - ⬇️ 一键安装新软件包
 - 🗑️ 一键卸载已安装的软件包
 - 🔄 检测并更新过时的软件包
+- � 批量更新所有过时载包
+- 🔧 更新 Homebrew 本身
+- 🧹 清理缓存
 - 📊 实时显示安装/卸载进度
+- 🌓 深色/浅色主题切换
 
 ### 截图
 

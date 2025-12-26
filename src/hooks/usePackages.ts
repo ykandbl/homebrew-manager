@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
-import type { Package, PackageInfo, OutdatedPackage, CommandOutput } from '../types';
+import type { Package, PackageInfo, OutdatedPackage, CommandOutput, HomebrewInfo } from '../types';
 
 interface ProgressEvent {
   package: string;
@@ -16,13 +16,18 @@ interface UsePackagesReturn {
   selectedPackage: Package | null;
   packageInfo: PackageInfo | null;
   isLoadingInfo: boolean;
+  homebrewInfo: HomebrewInfo | null;
   refresh: () => Promise<void>;
   selectPackage: (pkg: Package | null) => void;
   searchPackages: (query: string) => Promise<Package[]>;
   installPackage: (name: string, isCask: boolean, onProgress: (line: string) => void) => Promise<CommandOutput>;
   uninstallPackage: (name: string, isCask: boolean, onProgress: (line: string) => void) => Promise<CommandOutput>;
   upgradePackage: (name: string, isCask: boolean, onProgress: (line: string) => void) => Promise<CommandOutput>;
+  upgradeAll: (onProgress: (line: string) => void) => Promise<CommandOutput>;
+  updateHomebrew: (onProgress: (line: string) => void) => Promise<CommandOutput>;
+  cleanupHomebrew: (onProgress: (line: string) => void) => Promise<CommandOutput>;
   getOutdated: () => Promise<OutdatedPackage[]>;
+  refreshHomebrewInfo: () => Promise<void>;
 }
 
 export function usePackages(): UsePackagesReturn {
@@ -32,6 +37,7 @@ export function usePackages(): UsePackagesReturn {
   const [selectedPackage, setSelectedPackage] = useState<Package | null>(null);
   const [packageInfo, setPackageInfo] = useState<PackageInfo | null>(null);
   const [isLoadingInfo, setIsLoadingInfo] = useState(false);
+  const [homebrewInfo, setHomebrewInfo] = useState<HomebrewInfo | null>(null);
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
@@ -146,9 +152,73 @@ export function usePackages(): UsePackagesReturn {
     return await invoke<OutdatedPackage[]>('get_outdated');
   }, []);
 
+  const upgradeAll = useCallback(async (
+    onProgress: (line: string) => void
+  ): Promise<CommandOutput> => {
+    let unlisten: UnlistenFn | null = null;
+    
+    try {
+      unlisten = await listen<ProgressEvent>('install-progress', (event) => {
+        onProgress(event.payload.line);
+      });
+      
+      return await invoke<CommandOutput>('upgrade_all');
+    } finally {
+      if (unlisten) {
+        unlisten();
+      }
+    }
+  }, []);
+
+  const updateHomebrew = useCallback(async (
+    onProgress: (line: string) => void
+  ): Promise<CommandOutput> => {
+    let unlisten: UnlistenFn | null = null;
+    
+    try {
+      unlisten = await listen<ProgressEvent>('install-progress', (event) => {
+        onProgress(event.payload.line);
+      });
+      
+      return await invoke<CommandOutput>('update_homebrew');
+    } finally {
+      if (unlisten) {
+        unlisten();
+      }
+    }
+  }, []);
+
+  const cleanupHomebrew = useCallback(async (
+    onProgress: (line: string) => void
+  ): Promise<CommandOutput> => {
+    let unlisten: UnlistenFn | null = null;
+    
+    try {
+      unlisten = await listen<ProgressEvent>('install-progress', (event) => {
+        onProgress(event.payload.line);
+      });
+      
+      return await invoke<CommandOutput>('cleanup_homebrew');
+    } finally {
+      if (unlisten) {
+        unlisten();
+      }
+    }
+  }, []);
+
+  const refreshHomebrewInfo = useCallback(async () => {
+    try {
+      const info = await invoke<HomebrewInfo>('get_homebrew_info');
+      setHomebrewInfo(info);
+    } catch (e) {
+      console.error('Failed to get homebrew info:', e);
+    }
+  }, []);
+
   useEffect(() => {
     refresh();
-  }, [refresh]);
+    refreshHomebrewInfo();
+  }, [refresh, refreshHomebrewInfo]);
 
   return {
     packages,
@@ -157,12 +227,17 @@ export function usePackages(): UsePackagesReturn {
     selectedPackage,
     packageInfo,
     isLoadingInfo,
+    homebrewInfo,
     refresh,
     selectPackage,
     searchPackages,
     installPackage,
     uninstallPackage,
     upgradePackage,
+    upgradeAll,
+    updateHomebrew,
+    cleanupHomebrew,
     getOutdated,
+    refreshHomebrewInfo,
   };
 }

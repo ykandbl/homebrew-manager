@@ -16,6 +16,9 @@ const OPERATION_LABELS: Record<OperationType, string> = {
   uninstall: '卸载',
   upgrade: '更新',
   search: '搜索',
+  update: '更新',
+  cleanup: '清理',
+  upgrade_all: '批量更新',
 };
 
 export function ProgressModal({

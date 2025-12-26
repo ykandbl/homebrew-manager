@@ -80,7 +80,7 @@ export interface CommandOutput {
 /**
  * 操作类型
  */
-export type OperationType = 'install' | 'uninstall' | 'upgrade' | 'search';
+export type OperationType = 'install' | 'uninstall' | 'upgrade' | 'search' | 'update' | 'cleanup' | 'upgrade_all';
 
 /**
  * 操作状态
@@ -101,4 +101,16 @@ export interface Operation {
   output: string[];
   /** 错误信息 */
   error?: string;
+}
+
+/**
+ * Homebrew 信息
+ */
+export interface HomebrewInfo {
+  /** Homebrew 版本 */
+  version: string;
+  /** 缓存路径 */
+  cachePath: string;
+  /** 缓存大小（字节） */
+  cacheSize: number;
 }

@@ -476,3 +476,90 @@ pub async fn upgrade_package(
 pub async fn get_outdated() -> Result<Vec<OutdatedPackage>, String> {
     get_outdated_internal()
 }
+
+
+/// 更新 Homebrew（brew update）
+#[tauri::command]
+pub async fn update_homebrew(window: tauri::Window) -> Result<CommandOutput, String> {
+    let args = vec!["update".to_string()];
+    execute_brew_command_with_progress(&args, &window, "homebrew").await
+}
+
+/// 清理缓存（brew cleanup）
+#[tauri::command]
+pub async fn cleanup_homebrew(window: tauri::Window) -> Result<CommandOutput, String> {
+    let args = vec!["cleanup".to_string(), "--prune=all".to_string()];
+    execute_brew_command_with_progress(&args, &window, "cleanup").await
+}
+
+/// 批量更新所有过时的包
+#[tauri::command]
+pub async fn upgrade_all(window: tauri::Window) -> Result<CommandOutput, String> {
+    let args = vec!["upgrade".to_string()];
+    execute_brew_command_with_progress(&args, &window, "all").await
+}
+
+/// 获取 Homebrew 信息（版本、缓存大小等）
+#[tauri::command]
+pub async fn get_homebrew_info() -> Result<HomebrewInfo, String> {
+    let brew_path = get_brew_path();
+    
+    // 获取版本
+    let version_output = Command::new(&brew_path)
+        .arg("--version")
+        .output()
+        .map_err(|e| format!("Failed to get version: {}", e))?;
+    
+    let version = String::from_utf8_lossy(&version_output.stdout)
+        .lines()
+        .next()
+        .unwrap_or("Unknown")
+        .to_string();
+    
+    // 获取缓存大小
+    let cache_output = Command::new(&brew_path)
+        .args(["--cache"])
+        .output()
+        .map_err(|e| format!("Failed to get cache path: {}", e))?;
+    
+    let cache_path = String::from_utf8_lossy(&cache_output.stdout).trim().to_string();
+    
+    let cache_size = if !cache_path.is_empty() {
+        get_directory_size(&cache_path).unwrap_or(0)
+    } else {
+        0
+    };
+    
+    Ok(HomebrewInfo {
+        version,
+        cache_path,
+        cache_size,
+    })
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HomebrewInfo {
+    pub version: String,
+    pub cache_path: String,
+    pub cache_size: u64,
+}
+
+/// 获取目录大小（字节）
+fn get_directory_size(path: &str) -> Result<u64, String> {
+    let output = Command::new("du")
+        .args(["-sk", path])
+        .output()
+        .map_err(|e| format!("Failed to get directory size: {}", e))?;
+    
+    if output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let size_kb: u64 = stdout
+            .split_whitespace()
+            .next()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0);
+        Ok(size_kb * 1024) // 转换为字节
+    } else {
+        Ok(0)
+    }
+}
