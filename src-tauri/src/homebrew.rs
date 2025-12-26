@@ -103,49 +103,109 @@ pub async fn check_homebrew() -> Result<bool, String> {
 pub async fn list_installed() -> Result<Vec<Package>, String> {
     let mut packages = Vec::new();
     
-    // 获取已安装的 formulas
-    let formula_output = execute_brew_command(&["list", "--formula", "--versions"])?;
+    // 获取已安装的 formulas（带描述）
+    let formula_output = execute_brew_command(&["info", "--installed", "--json=v2"])?;
     if formula_output.success {
-        for line in formula_output.stdout.lines() {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if let Some(name) = parts.first() {
-                let version = parts.get(1).unwrap_or(&"").to_string();
+        #[derive(Debug, Deserialize)]
+        struct InstalledJson {
+            formulae: Vec<FormulaInstalled>,
+            casks: Vec<CaskInstalled>,
+        }
+        
+        #[derive(Debug, Deserialize)]
+        struct FormulaInstalled {
+            name: String,
+            desc: Option<String>,
+            installed: Vec<InstalledVersion>,
+            outdated: bool,
+        }
+        
+        #[derive(Debug, Deserialize)]
+        struct InstalledVersion {
+            version: String,
+        }
+        
+        #[derive(Debug, Deserialize)]
+        struct CaskInstalled {
+            token: String,
+            desc: Option<String>,
+            version: String,
+            installed: Option<String>,
+            outdated: bool,
+        }
+        
+        if let Ok(json) = serde_json::from_str::<InstalledJson>(&formula_output.stdout) {
+            for f in json.formulae {
+                let version = f.installed.first().map(|v| v.version.clone()).unwrap_or_default();
                 packages.push(Package {
-                    name: name.to_string(),
+                    name: f.name,
                     version,
                     pkg_type: "formula".to_string(),
                     installed: true,
-                    outdated: false,
-                    description: None,
+                    outdated: f.outdated,
+                    description: f.desc,
                 });
             }
-        }
-    }
-    
-    // 获取已安装的 casks
-    let cask_output = execute_brew_command(&["list", "--cask", "--versions"])?;
-    if cask_output.success {
-        for line in cask_output.stdout.lines() {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if let Some(name) = parts.first() {
-                let version = parts.get(1).unwrap_or(&"").to_string();
+            
+            for c in json.casks {
                 packages.push(Package {
-                    name: name.to_string(),
-                    version,
+                    name: c.token,
+                    version: c.installed.unwrap_or(c.version),
                     pkg_type: "cask".to_string(),
                     installed: true,
-                    outdated: false,
-                    description: None,
+                    outdated: c.outdated,
+                    description: c.desc,
                 });
             }
         }
     }
     
-    // 获取过时的包并标记
-    if let Ok(outdated) = get_outdated_internal() {
-        for outdated_pkg in outdated {
-            if let Some(pkg) = packages.iter_mut().find(|p| p.name == outdated_pkg.name) {
-                pkg.outdated = true;
+    // 如果 JSON 方式失败，回退到简单方式
+    if packages.is_empty() {
+        // 获取已安装的 formulas
+        let formula_output = execute_brew_command(&["list", "--formula", "--versions"])?;
+        if formula_output.success {
+            for line in formula_output.stdout.lines() {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if let Some(name) = parts.first() {
+                    let version = parts.get(1).unwrap_or(&"").to_string();
+                    packages.push(Package {
+                        name: name.to_string(),
+                        version,
+                        pkg_type: "formula".to_string(),
+                        installed: true,
+                        outdated: false,
+                        description: None,
+                    });
+                }
+            }
+        }
+        
+        // 获取已安装的 casks
+        let cask_output = execute_brew_command(&["list", "--cask", "--versions"])?;
+        if cask_output.success {
+            for line in cask_output.stdout.lines() {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if let Some(name) = parts.first() {
+                    let version = parts.get(1).unwrap_or(&"").to_string();
+                    packages.push(Package {
+                        name: name.to_string(),
+                        version,
+                        pkg_type: "cask".to_string(),
+                        installed: true,
+                        outdated: false,
+                        description: None,
+                    });
+                }
+            }
+        }
+        
+        // 获取过时的包并标记
+        if let Ok(outdated) = get_outdated_internal() {
+            for outdated_pkg in outdated {
+                if let Some(pkg) = packages.iter_mut().find(|p| p.name == outdated_pkg.name) {
+                    pkg.outdated = true;
+                }
             }
         }
     }
@@ -593,6 +653,62 @@ pub async fn get_pinned() -> Result<Vec<String>, String> {
         .collect();
     
     Ok(pinned)
+}
+
+/// 获取包的安装大小
+#[tauri::command]
+pub async fn get_package_size(name: String, is_cask: bool) -> Result<u64, String> {
+    let brew_path = get_brew_path();
+    
+    // 获取包的安装路径
+    let prefix_output = Command::new(&brew_path)
+        .args(["--prefix"])
+        .output()
+        .map_err(|e| format!("Failed to get brew prefix: {}", e))?;
+    
+    let prefix = String::from_utf8_lossy(&prefix_output.stdout).trim().to_string();
+    
+    if is_cask {
+        // Cask 应用通常在 /Applications 或 ~/Applications
+        let app_paths = [
+            format!("/Applications/{}.app", name),
+            format!("/Applications/{}.app", capitalize_first(&name)),
+            format!("{}/Caskroom/{}", prefix, name),
+        ];
+        
+        for path in &app_paths {
+            if std::path::Path::new(path).exists() {
+                if let Ok(size) = get_directory_size(path) {
+                    if size > 0 {
+                        return Ok(size);
+                    }
+                }
+            }
+        }
+        
+        // 尝试从 Caskroom 获取
+        let caskroom_path = format!("{}/Caskroom/{}", prefix, name);
+        if let Ok(size) = get_directory_size(&caskroom_path) {
+            return Ok(size);
+        }
+    } else {
+        // Formula 在 Cellar 目录
+        let cellar_path = format!("{}/Cellar/{}", prefix, name);
+        if let Ok(size) = get_directory_size(&cellar_path) {
+            return Ok(size);
+        }
+    }
+    
+    Ok(0)
+}
+
+/// 首字母大写
+fn capitalize_first(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+    }
 }
 
 /// 获取包的依赖关系

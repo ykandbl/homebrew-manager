@@ -9,6 +9,7 @@ interface PackageDetailsProps {
   isLoading: boolean;
   isPinned: boolean;
   isFavorite: boolean;
+  packageSize: number;
   onInstall: () => void;
   onUninstall: () => void;
   onUpdate: () => void;
@@ -18,12 +19,21 @@ interface PackageDetailsProps {
   lang: Language;
 }
 
+function formatSize(bytes: number): string {
+  if (bytes === 0) return '-';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
 export function PackageDetails({
   package: pkg,
   packageInfo,
   isLoading,
   isPinned,
   isFavorite,
+  packageSize,
   onInstall,
   onUninstall,
   onUpdate,
@@ -104,6 +114,12 @@ export function PackageDetails({
                 <div className="package-details__info-item">
                   <span className="label">{t('installedVersion', lang)}</span>
                   <span className="value">{info.installedVersion}</span>
+                </div>
+              )}
+              {pkg.installed && (
+                <div className="package-details__info-item">
+                  <span className="label">{lang === 'zh' ? '占用空间' : 'Disk Usage'}</span>
+                  <span className="value">{formatSize(packageSize)}</span>
                 </div>
               )}
             </div>

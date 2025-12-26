@@ -2,8 +2,9 @@ mod homebrew;
 
 use homebrew::{
     check_homebrew, cleanup_homebrew, get_dependencies, get_homebrew_info, get_outdated,
-    get_package_info, get_pinned, install_package, list_installed, pin_package, search_packages,
-    uninstall_package, unpin_package, update_homebrew, upgrade_all, upgrade_package,
+    get_package_info, get_package_size, get_pinned, install_package, list_installed, pin_package,
+    search_packages, uninstall_package, unpin_package, update_homebrew, upgrade_all,
+    upgrade_package,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -15,6 +16,7 @@ pub fn run() {
             list_installed,
             search_packages,
             get_package_info,
+            get_package_size,
             install_package,
             uninstall_package,
             upgrade_package,

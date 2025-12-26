@@ -64,6 +64,15 @@
   color: var(--text-primary);
 }
 
+.package-item__desc {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
 .package-item__type {
   font-size: 0.75rem;
   padding: 0.125rem 0.5rem;

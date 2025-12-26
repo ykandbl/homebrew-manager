@@ -29,6 +29,7 @@ function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [depsInfo, setDepsInfo] = useState<DependencyInfo | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; pkg: Package } | null>(null);
+  const [packageSize, setPackageSize] = useState<number>(0);
   const autoRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [operation, setOperation] = useState<{
@@ -58,8 +59,20 @@ function App() {
     isLoadingInfo, homebrewInfo, refresh, selectPackage, searchPackages,
     installPackage, uninstallPackage, upgradePackage, upgradeAll,
     updateHomebrew, cleanupHomebrew, pinPackage, unpinPackage,
-    getDependencies, refreshHomebrewInfo,
+    getDependencies, getPackageSize, refreshHomebrewInfo,
   } = usePackages();
+
+  // 获取选中包的大小
+  useEffect(() => {
+    if (selectedPackage && selectedPackage.installed) {
+      setPackageSize(0);
+      getPackageSize(selectedPackage.name, selectedPackage.type === 'cask')
+        .then(setPackageSize)
+        .catch(() => setPackageSize(0));
+    } else {
+      setPackageSize(0);
+    }
+  }, [selectedPackage, getPackageSize]);
 
   const {
     preferences, history, setFilter, setTheme, setLanguage,
@@ -332,6 +345,7 @@ function App() {
             isLoading={isLoadingInfo} 
             isPinned={isPinned} 
             isFavorite={selectedPackage ? isFavorite(selectedPackage.name) : false}
+            packageSize={packageSize}
             onInstall={() => handleInstall()} 
             onUninstall={() => handleUninstallConfirm()} 
             onUpdate={() => handleUpdate()} 

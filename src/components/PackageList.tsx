@@ -54,6 +54,9 @@ export function PackageList({ packages, pinnedPackages, favoritePackages, select
                 {pkg.type}
               </span>
             </div>
+            {pkg.description && (
+              <div className="package-item__desc">{pkg.description}</div>
+            )}
             <div className="package-item__meta">
               {pkg.version && (
                 <span className="package-item__version">{pkg.version}</span>

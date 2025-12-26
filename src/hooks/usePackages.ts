@@ -30,6 +30,7 @@ interface UsePackagesReturn {
   pinPackage: (name: string) => Promise<CommandOutput>;
   unpinPackage: (name: string) => Promise<CommandOutput>;
   getDependencies: (name: string, isCask: boolean) => Promise<DependencyInfo>;
+  getPackageSize: (name: string, isCask: boolean) => Promise<number>;
   getOutdated: () => Promise<OutdatedPackage[]>;
   refreshHomebrewInfo: () => Promise<void>;
 }
@@ -250,6 +251,15 @@ export function usePackages(): UsePackagesReturn {
     return await invoke<DependencyInfo>('get_dependencies', { name, isCask });
   }, []);
 
+  const getPackageSize = useCallback(async (name: string, isCask: boolean): Promise<number> => {
+    try {
+      return await invoke<number>('get_package_size', { name, isCask });
+    } catch (e) {
+      console.error('Failed to get package size:', e);
+      return 0;
+    }
+  }, []);
+
   useEffect(() => {
     refresh();
     refreshHomebrewInfo();
@@ -276,6 +286,7 @@ export function usePackages(): UsePackagesReturn {
     pinPackage,
     unpinPackage,
     getDependencies,
+    getPackageSize,
     getOutdated,
     refreshHomebrewInfo,
   };
